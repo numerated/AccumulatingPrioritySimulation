@@ -1,6 +1,8 @@
+
+
 stategen<-function(arrivalrate=0.95,servicerate=1,prioratio=2,policy=1,samples=100,timeperiod=100){
   
-  tlist=list() #series of lists that will store our state spaces
+  tlist=list() #series of lists that will store our states
   q1c1list=list()
   q1c2list=list()
   q2c1list=list()
@@ -15,9 +17,9 @@ stategen<-function(arrivalrate=0.95,servicerate=1,prioratio=2,policy=1,samples=1
   c2prio=1/prioratio #Class 2 Priority Rate (must be positive number)
    #Length Queue Will Run (must be positive number)
 
-for (j in 1:samples){
-  q1inserv=0 
-  q2inserv=0
+for (j in 1:samples){ 
+  q1inserv=0 #sets queue to currently not be in service
+  q2inserv=0 #sets queue to currently not be in service
   c1arrivals<-cumsum(rexp((timeperiod*c1arrivalrate)*10,rate=c1arrivalrate)) #didn't want to use a loop so did 10x more observations than the average needed & cut off at the time period
   c1arrivals<-c1arrivals[c1arrivals<(timeperiod*1.5)]
   c2arrivals<-cumsum(rexp((timeperiod*c2arrivalrate)*10,rate=c2arrivalrate)) 
@@ -52,7 +54,7 @@ for (j in 1:samples){
         t=min(c1arrivals) #updating time to arrival time 
         if (policy==1){
           x<-Coinflip(1)
-        } else if (policy==2){
+        } else if (policy==2){ #deciding which policy to use 
         x<-Lengthq(q1c1,q1c2,q2c1,q2c2)
         } else if (policy==5){
         x<-C1FullInfoq(q1c1,q1c2,q2c1,q2c2,t,c1prio,c2prio,mu1,mu2,q1inserv,q2inserv)
@@ -165,7 +167,7 @@ for (j in 1:samples){
       }
     }
   }
-  tlist[[length(tlist)+1]]<-tstore 
+  tlist[[length(tlist)+1]]<-tstore #adding recorded values to a list
   q1c1list[[length(q1c1list)+1]]<-q1c1store
   q1c2list[[length(q1c2list)+1]]<-q1c2store
   q2c1list[[length(q2c1list)+1]]<-q2c1store
@@ -174,5 +176,7 @@ for (j in 1:samples){
   q2inservlist[[length(q2inservlist)+1]]<-q2inservstore
 
 }
-  list(tlist,q1c1list,q1c2list,q2c1list,q2c2list,q1inservlist,q2inservlist,policy,arrivalrate,timeperiod,mu1,mu2,prioratio)
+  list(tlist,q1c1list,q1c2list,q2c1list,q2c2list,q1inservlist,q2inservlist,policy,arrivalrate,timeperiod,mu1,mu2,prioratio) #returns a list of all relevant values from the simulation
 }
+
+
