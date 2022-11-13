@@ -1,0 +1,178 @@
+stategen<-function(arrivalrate=0.95,servicerate=1,prioratio=2,policy=1,samples=100,timeperiod=100){
+  
+  tlist=list() #series of lists that will store our state spaces
+  q1c1list=list()
+  q1c2list=list()
+  q2c1list=list()
+  q2c2list=list()
+  q1inservlist=list()
+  q2inservlist=list()
+  c1arrivalrate=arrivalrate #Class 1 Arrival Rate (must be positive number)
+  c2arrivalrate=arrivalrate #Class 2 Arrival Rate (must be positive number)
+  mu1=servicerate #Class 1 Service Rate (must be positive number)
+  mu2=servicerate #Class 2 Service Rate (must be positive number)
+  c1prio=1 #Class 1 Priority Rate (must be positive number)
+  c2prio=1/prioratio #Class 2 Priority Rate (must be positive number)
+   #Length Queue Will Run (must be positive number)
+
+for (j in 1:samples){
+  q1inserv=0 
+  q2inserv=0
+  c1arrivals<-cumsum(rexp((timeperiod*c1arrivalrate)*10,rate=c1arrivalrate)) #didn't want to use a loop so did 10x more observations than the average needed & cut off at the time period
+  c1arrivals<-c1arrivals[c1arrivals<(timeperiod*1.5)]
+  c2arrivals<-cumsum(rexp((timeperiod*c2arrivalrate)*10,rate=c2arrivalrate)) 
+  c2arrivals<-c2arrivals[c2arrivals<(timeperiod*1.5)]
+  t=0 #Current time
+  q1fin=timeperiod+1 #Time of next Q1 Service finishing (set to a large number for purposed of queue)
+  q2fin=timeperiod+1 #Time of next Q2 Service finishing
+  q1c1=vector() #Class 1's in Queue 1 
+  q2c1=vector() #Class 1's in Queue 2
+  q2c2=vector() #Class 2's in Queue 2 
+  q1c2=vector() #Class 2's in Queue 1
+  tstore=vector()
+  q1c1store=vector()
+  q1c2store=vector()
+  q2c2store=vector()
+  q2c1store=vector()
+  q1inservstore=vector()
+  q1inservstore=vector()
+  golden=timeperiod
+  while (t<timeperiod){
+    if (abs((t-golden))<(timeperiod/10)){ #takes a snapshot if we have reached the correct time
+      tstore=t
+      q1c1store=q1c1 
+      q1c2store=q1c2
+      q2c2store=q2c2
+      q2c1store=q2c1
+      q1inservstore=q1inserv
+      q2inservstore=q2inserv
+    }
+    if(min(c1arrivals,c2arrivals,timeperiod)<min(q1fin,q2fin)){ #WHERE ARRIVALS OCCUR 
+      if (min(c1arrivals)<min(c2arrivals)){ #WHERE C1ARRIVALS GO
+        t=min(c1arrivals) #updating time to arrival time 
+        if (policy==1){
+          x<-Coinflip(1)
+        } else if (policy==2){
+        x<-Lengthq(q1c1,q1c2,q2c1,q2c2)
+        } else if (policy==5){
+        x<-C1FullInfoq(q1c1,q1c2,q2c1,q2c2,t,c1prio,c2prio,mu1,mu2,q1inserv,q2inserv)
+        }
+        x
+        if (x>0.5){ #joining queue 1 
+          
+          q1c1=append(q1c1,c1arrivals[1])
+          c1arrivals=c1arrivals[-1]
+          if((length(q1c2)+length(q1c1)<2) && (q1inserv==0)){
+            q1fin=t+rexp(1,rate=mu1)
+            q1inserv=1
+            q1c1=q1c1[-1]
+          }
+          
+        } else { #joining queue 2 
+          q2c1=append(q2c1,c1arrivals[1])
+          c1arrivals=c1arrivals[-1]
+          if((length(q2c2)+length(q2c1)<2) && (q2inserv==0)){
+            q2fin=t+rexp(1,rate=mu1)
+            q2inserv=1
+            q2c1=q2c1[-1]
+          }
+        }
+        
+      } else if (min(c1arrivals)>min(c2arrivals)){
+        #WHERE C2 ARRIVALS GO
+        t=min(c2arrivals) #updating time to arrival time 
+        if (policy==1){
+          x<-Coinflip(1)
+        } else if (policy==2){
+          x<-Lengthq(q1c1,q1c2,q2c1,q2c2)
+        } else if (policy==5){
+          x<-C2FullInfoq(q1c1,q1c2,q2c1,q2c2,t,c1prio,c2prio,mu1,mu2,q1inserv,q2inserv,timeperiod,c1arrivalrate,c2arrivalrate)
+        } 
+        if (x>0.5){ #joining queue 1 
+          
+          q1c2=append(q1c2,c2arrivals[1])
+          c2arrivals=c2arrivals[-1]
+          if((length(q1c2)+length(q1c1))<2 && (q1inserv==0)){
+            q1fin=t+rexp(1,rate=mu1)
+            q1inserv=1
+            q1c2=q1c2[-1]
+          }
+          
+        } else { #joining queue 2 
+          q2c2=append(q2c2,c2arrivals[1])
+          c2arrivals=c2arrivals[-1]
+          if((length(q2c2)+length(q2c1))<2 && (q2inserv==0)){
+            q2fin=t+rexp(1,rate=mu1)
+            q2inserv=1
+            q2c2=q2c2[-1]
+          }
+        }
+        
+        
+      }
+    } else {#WHERE SERVICE FINISHING OCCURS 
+      if (q1fin<q2fin){ #handling q1 finishing next
+        t=q1fin
+        if (length(q1c1)>0 & length(q1c2)>0){ #when there are both q1's & q2's 
+          if ((t-min(q1c1))*c1prio>(t-min(q1c2))*c2prio){ #when c1 have greater prio
+            q1c1<-q1c1[-1]
+            q1fin=t+rexp(1,rate=mu1)
+            q1inserv=1
+          } else {
+            q1c2<-q1c2[-1]
+            q1fin=t+rexp(1,rate=mu1)
+            q1inserv=1
+          }
+        } else if (length(q1c1)>0){
+          q1c1<-q1c1[-1]
+          q1fin=t+rexp(1,rate=mu1)
+          q1inserv=1
+        } else if (length(q1c2)>0){
+          q1c2<-q1c2[-1]
+          q1fin=t+rexp(1,rate=mu1)
+          q1inserv=1
+        } else {
+          q1fin=timeperiod+5
+          q1inserv=0
+          
+        }
+        
+        
+      } else if (q1fin>q2fin){
+        t=q2fin
+        if (length(q2c1)>0 & length(q2c2)>0){ #when there are both q1's & q2's 
+          if ((t-min(q2c1))*c1prio>(t-min(q2c2))*c2prio){ #when c1 have greater prio
+            q2c1<-q2c1[-1]
+            q2fin=t+rexp(1,rate=mu1)
+            q2inserv=1
+          } else {
+            q2c2<-q2c2[-1]
+            q2fin=t+rexp(1,rate=mu1)
+            q2inserv=1
+          }
+        } else if (length(q2c1)>0){
+          q2c1<-q2c1[-1]
+          q2fin=t+rexp(1,rate=mu1)
+          q2inserv=1
+        } else if (length(q2c2)>0){
+          q2c2<-q2c2[-1]
+          q2fin=t+rexp(1,rate=mu1)
+          q2inserv=1
+        } else {
+          q2fin=timeperiod+5
+          q2inserv=0
+        }
+      }
+    }
+  }
+  tlist[[length(tlist)+1]]<-tstore 
+  q1c1list[[length(q1c1list)+1]]<-q1c1store
+  q1c2list[[length(q1c2list)+1]]<-q1c2store
+  q2c1list[[length(q2c1list)+1]]<-q2c1store
+  q2c2list[[length(q2c2list)+1]]<-q2c2store
+  q1inservlist[[length(q1inservlist)+1]]<-q1inservstore
+  q2inservlist[[length(q2inservlist)+1]]<-q2inservstore
+
+}
+  list(tlist,q1c1list,q1c2list,q2c1list,q2c2list,q1inservlist,q2inservlist,policy,arrivalrate,timeperiod,mu1,mu2,prioratio)
+}
